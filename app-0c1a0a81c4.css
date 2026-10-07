@@ -1,0 +1,153 @@
+/* Flatten London. Adapted from flattensf (MIT) by Drew Edwards
+   (sf_flat_routes/web/simple.css).
+   Layout: the map is the page; one card floats over it with the two inputs,
+   the slider and the result. On a phone the card docks to the bottom. */
+:root{
+  --paper:#f6f6f3; --ink:#1a1f26; --muted:#5f6b78; --line:#d9dcd9;
+  --card:#ffffff; --field:#f1f2ef;
+  --route:#0f8f6f; --mid:#d9961f; --route-casing:#ffffff; --short:#d1452c; --family:#8f99a3;
+  --accent:#0f8f6f; --focus:#1f5fd0;
+  --font:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --street:#c4c7c3;
+  --water-label:#4f7aa3; --park-label:#4f7d5a;
+  --shade-filter:none;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#15191e; --ink:#eceff2; --muted:#9aa5b1; --line:#2e353d;
+    --card:#1c2128; --field:#242a32; --route:#3ccfa5; --mid:#f0b43a; --route-casing:#0f1317;
+    --short:#ff7a5c; --family:#5b6672; --accent:#6ea0ff; --focus:#6ea0ff;
+    --street:#3a424b; --water-label:#8fb4d9; --park-label:#8fbf98;
+    --shade-filter:invert(1) hue-rotate(180deg) brightness(.72) contrast(.9);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15191e; --ink:#eceff2; --muted:#9aa5b1; --line:#2e353d;
+  --card:#1c2128; --field:#242a32; --route:#3ccfa5; --mid:#f0b43a; --route-casing:#0f1317;
+  --short:#ff7a5c; --family:#5b6672; --accent:#6ea0ff; --focus:#6ea0ff;
+  --street:#3a424b; --water-label:#8fb4d9; --park-label:#8fbf98;
+  --shade-filter:invert(1) hue-rotate(180deg) brightness(.72) contrast(.9);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+/* the page never scrolls or pans: the map and the card scroll inside themselves */
+html{overflow:hidden;overscroll-behavior:none}
+body{position:fixed;inset:0;width:100%;overscroll-behavior:none}
+body{background:var(--paper);color:var(--ink);font:14px/1.45 var(--font);overflow:hidden}
+#map{position:absolute;inset:0;background:var(--paper)}
+.leaflet-container{background:var(--paper);font-family:var(--font)}
+.leaflet-layer.basemap{filter:var(--shade-filter)}
+/* Leaflet 1.9.4 draws tiles with mix-blend-mode: plus-lighter, which in Chromium leaves light
+   hairlines between basemap tiles at fractional zooms (and a dark grid in dark mode) */
+.leaflet-container .leaflet-layer.basemap img.leaflet-tile{mix-blend-mode:normal}
+.z-over .leaflet-layer.basemap{opacity:.5!important}  /* Leaflet sets opacity inline */
+.leaflet-bar a{background:var(--card);color:var(--ink);border-bottom-color:var(--line)}
+.credit{position:absolute;left:12px;bottom:10px;z-index:900;font-size:11px;color:var(--muted);background:color-mix(in srgb,var(--card) 80%,transparent);padding:3px 7px;border-radius:6px}
+.credit a,.credit-inline a,.attr-inline a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+.credit a:hover,.credit-inline a:hover,.attr-inline a:hover{color:var(--ink)}
+.credit-inline,.attr-inline{display:none;font-size:11px;color:var(--muted);margin:0}
+.attr-inline{font-size:10px;line-height:1.4}
+.leaflet-control-attribution{background:color-mix(in srgb,var(--card) 85%,transparent)!important;color:var(--muted)!important;font-size:10px;max-width:calc(100vw - 470px);line-height:1.35}
+.leaflet-control-attribution a{color:var(--muted)!important}
+.streets{pointer-events:none}
+.pin-icon{width:18px;height:18px;border-radius:50%;background:var(--route);border:3px solid var(--card);box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:grab}
+.pin-icon.to{background:var(--ink)}
+.turns{font-size:12.5px;line-height:1.5;color:var(--ink);overflow-wrap:anywhere}
+.turns .st{max-width:100%}
+.turns .via{color:var(--muted);margin:0 3px}
+.turns .st{white-space:nowrap}
+.turns .more{margin-left:6px;font-size:12px}
+.rtlabel{font:600 11px var(--font);color:var(--ink);letter-spacing:.01em;white-space:nowrap;pointer-events:none;text-shadow:0 0 2px var(--route-casing),0 0 4px var(--route-casing),0 0 6px var(--route-casing)}
+.rtlabel span{display:inline-block;transform:translate(-50%,-50%) rotate(var(--rot,0deg));transform-origin:center}
+.z-low .rtlabel{display:none}
+/* map labels: boroughs far out, areas in the middle, parks and water close in */
+.maplabel{white-space:nowrap;pointer-events:none}
+.maplabel span{display:inline-block;transform:translate(-50%,-50%);font:500 11px var(--font);color:var(--muted);letter-spacing:.02em;opacity:.85;text-shadow:0 0 3px var(--paper),0 0 6px var(--paper)}
+.maplabel.k-borough span{font-weight:600;font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;opacity:.7}
+.maplabel.k-water span{font-style:italic;color:var(--water-label)}
+.maplabel.k-park span{font-size:10.5px;color:var(--park-label)}
+
+#card{overflow-x:clip;position:absolute;top:16px;left:16px;width:min(400px,calc(100% - 32px));max-height:calc(100% - 32px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.14);padding-block:14px;padding-inline:16px;z-index:1000;display:flex;flex-direction:column;gap:10px}
+.head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+h1{font-size:15px;font-weight:600;margin:0;letter-spacing:-.01em}
+h1 small{font-weight:400;color:var(--muted);margin-left:6px;font-size:12px}
+.row{display:flex;gap:8px;align-items:center;min-width:0}
+.field{position:relative;flex:1;min-width:0}
+.field label{position:absolute;left:10px;top:5px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);pointer-events:none}
+.field input{width:100%;padding:19px 28px 6px 10px;text-overflow:ellipsis;background:var(--field);color:var(--ink);border:1px solid transparent;border-radius:8px;font:14px var(--font)}
+.field input:focus-visible{outline:2px solid var(--focus);outline-offset:0;border-color:transparent}
+.field input::placeholder{color:var(--muted);opacity:.8}
+.field .pin{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:10px;height:10px;border-radius:50%;background:var(--route);box-shadow:0 0 0 2px var(--card)}
+.field .pin.to{background:var(--ink)}
+.suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:1200;max-height:284px;overflow:auto;padding:4px 0;margin:0;list-style:none}
+.suggest li{padding:7px 10px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.suggest li[aria-selected="true"],.suggest li:hover{background:var(--field)}
+.suggest li.note{cursor:default;color:var(--muted);font-size:12.5px}
+.suggest li.note:hover{background:none}
+.suggest .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;flex:none}
+.suggest .n{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.suggest .loc{color:var(--muted)}
+button{font:13px var(--font);color:var(--ink);background:var(--field);border:1px solid transparent;border-radius:8px;padding:8px 10px;cursor:pointer}
+button:hover{border-color:var(--line)}
+button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.swap{flex:none;width:36px;height:36px;padding:0;font-size:16px;line-height:1}
+.seg{display:flex;background:var(--field);border-radius:8px;padding:3px;gap:3px}
+.seg button{flex:1;background:transparent;padding:6px 8px}
+.seg button[aria-pressed="true"]{background:var(--card);box-shadow:0 1px 2px rgba(0,0,0,.12);font-weight:600}
+.seg.units{flex:none;padding:2px;gap:2px;border-radius:7px}
+.seg.units button{padding:2px 7px;font:500 11px var(--mono);border-radius:5px;color:var(--muted)}
+.seg.units button[aria-pressed="true"]{color:var(--ink)}
+.hint{font-size:12px;color:var(--muted)}
+
+.slider{display:flex;flex-direction:column;gap:4px;margin-top:2px}
+.slider .ends{display:flex;justify-content:space-between;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.slider .ends b{color:var(--ink);font-weight:600}
+input[type=range]{touch-action:none;-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--short),var(--mid),var(--route));outline:none;margin:6px 0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--card);border:2px solid var(--ink);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--card);border:2px solid var(--ink);cursor:pointer}
+input[type=range]:focus-visible{outline:2px solid var(--focus);outline-offset:4px}
+
+.result{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{min-width:0}
+.stat .v{font:600 20px/1.1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em;min-height:22px}
+.stat .v small{font:500 12px var(--font);color:var(--muted);margin-left:2px}
+.stat .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:3px}
+.delta{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.delta:empty{display:none}
+.delta b{color:var(--ink);font-weight:600}
+.delta .up{color:var(--short)} .delta .down{color:var(--route)}
+#prof{width:100%;height:92px;display:block;border-radius:8px;background:var(--field)}
+.statusrow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.status{font-size:12px;color:var(--muted);min-height:1.2em}
+.status.warn{color:var(--short)}
+button.link{background:none;border:0;padding:0;font-size:12px;color:var(--accent);cursor:pointer;flex:none;text-decoration:underline;text-underline-offset:2px}
+button.link:hover{border:0}
+#sharebox{width:100%;font:11px var(--mono);padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--field);color:var(--ink)}
+.fine{font-size:11px;color:var(--muted);line-height:1.4}
+.fine:empty{display:none}
+details{font-size:12px;color:var(--muted)}
+details summary{cursor:pointer;user-select:none}
+details a{color:var(--accent)}
+@media (max-width:640px){
+  .credit{display:none}
+  .credit-inline,.attr-inline{display:block}
+  .leaflet-top.leaflet-right .leaflet-control-attribution{max-width:calc(100vw - 20px);border-radius:0 0 0 6px}
+  #card.typing .slider,#card.typing .result,#card.typing .delta,#card.typing #prof,#card.typing details,#card.typing .statusrow,#card.typing #sharebox,#card.typing .turns,#card.typing .credit-inline,#card.typing .attr-inline{display:none}
+  #card{top:auto;bottom:0;left:0;width:100%;max-height:58%;border-radius:14px 14px 0 0;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+  /* typing: the card moves to the top, clear of the keyboard, and the suggestions hang below it */
+  #card.typing{top:0;bottom:auto;max-height:none;overflow:visible;border-radius:0 0 14px 14px;padding-top:calc(12px + env(safe-area-inset-top,0px));padding-bottom:12px}
+  /* iOS zooms into any field under 16px on focus, after which the page pans sideways */
+  .field input,#sharebox{font-size:16px}
+  #card{overflow-x:clip;overflow-y:auto;overscroll-behavior:contain}
+  #card.typing{overflow-x:clip;overflow-y:visible}
+  .result{grid-template-columns:repeat(3,1fr)}
+  .stat .v{font-size:17px}
+  /* the docked card covers the bottom of the map: lift the zoom buttons above it */
+  .leaflet-bottom.leaflet-right{bottom:var(--card-h,58%)}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}

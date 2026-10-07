@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<!-- Flatten London. Adapted from flattensf (MIT) by Drew Edwards
+     (sf_flat_routes/web/simple.html). site.py fills in the placeholders. -->
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Flatten London</title>
+<meta name="description" content="flattenlondon: the flattest walking or cycling route between any two places in London, and every route between it and the shortest one.">
+<link rel="canonical" href="https://mfbx9da4.github.io/flattenlondon/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Flatten London">
+<meta property="og:site_name" content="Flatten London">
+<meta property="og:description" content="The flattest walking or cycling route between any two places in London, and every route between it and the shortest one.">
+<meta property="og:url" content="https://mfbx9da4.github.io/flattenlondon/">
+<meta property="og:image" content="https://mfbx9da4.github.io/flattenlondon/preview.jpg">
+<meta property="og:image:secure_url" content="https://mfbx9da4.github.io/flattenlondon/preview.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A map of London with a fan of walking routes from the shortest to the flattest">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Flatten London">
+<meta name="twitter:description" content="The flattest walking or cycling route between any two places in London, and every route between it and the shortest one.">
+<meta name="twitter:image" content="https://mfbx9da4.github.io/flattenlondon/preview.jpg">
+<link rel="preload" href="data/index-70c72bf6ff.json" as="fetch" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<link rel="stylesheet" href="leaflet-340720efc3.css">
+<link rel="stylesheet" href="app-0c1a0a81c4.css">
+</head>
+<body>
+<div id="map"></div>
+<div class="credit" id="credit">Adapted from <a href="https://github.com/almostimplemented/flattensf">flattensf</a> by Drew Edwards</div>
+<section id="card" aria-label="flattenlondon: plan a flat route">
+  <div class="head">
+    <h1>Flatten London <small>flat routes across London</small></h1>
+    <div class="seg units" id="units" role="group" aria-label="Units">
+      <button type="button" data-v="metric" aria-pressed="true" title="Kilometres and metres">km</button>
+      <button type="button" data-v="imperial" aria-pressed="false" title="Miles and feet">mi</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label for="from">From</label>
+      <input id="from" type="text" autocomplete="off" spellcheck="false" placeholder="Postcode, place, or Camden High St &amp; Parkway"
+        role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="from_s">
+      <span class="pin" aria-hidden="true"></span>
+      <ul class="suggest" id="from_s" role="listbox" hidden></ul>
+    </div>
+    <button class="swap" id="swap" type="button" title="Swap" aria-label="Swap origin and destination">&#8645;</button>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label for="to">To</label>
+      <input id="to" type="text" autocomplete="off" spellcheck="false" placeholder="Or click the map"
+        role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="to_s">
+      <span class="pin to" aria-hidden="true"></span>
+      <ul class="suggest" id="to_s" role="listbox" hidden></ul>
+    </div>
+    <div class="seg" id="mode" role="group" aria-label="Travel mode">
+      <button type="button" data-v="walk" aria-pressed="true">Walk</button>
+      <button type="button" data-v="bike" aria-pressed="false">Bike</button>
+    </div>
+  </div>
+  <div class="statusrow">
+    <div class="status" id="status" role="status" aria-live="polite">Loading London…</div>
+    <button class="link" id="share" type="button" hidden>Copy link</button>
+  </div>
+  <input id="sharebox" type="text" readonly hidden aria-label="Link to this route">
+  <div class="slider">
+    <input type="range" id="sl" min="0" max="1" step="0.001" value="1" aria-label="From shortest to flattest">
+    <div class="ends"><span>Shortest</span><b id="slpos"></b><span>Flattest</span></div>
+  </div>
+  <div class="result" id="result" hidden>
+    <div class="stat"><div class="v" id="v_dist"></div><div class="k">distance</div></div>
+    <div class="stat"><div class="v" id="v_climb"></div><div class="k">climbing</div></div>
+    <div class="stat"><div class="v" id="v_grade"></div><div class="k">steepest</div></div>
+  </div>
+  <div class="delta" id="delta"></div>
+  <div class="turns" id="turns" hidden></div>
+  <canvas id="prof" width="760" height="184" hidden></canvas>
+  <details>
+    <summary>How this works</summary>
+    <p class="fine">Routes are computed in your browser over about 1.4 million street segments, using Environment Agency 1&nbsp;m LIDAR (composite DTM) elevation and the Overture / OpenStreetMap street graph. The slider runs along the whole trade-off between distance and climbing: every route that nothing else beats on both counts, from the shortest path to the flattest one worth walking (where a metre of climb costs 200&nbsp;m of walking; beyond that the routes stop being routes). Sliding right never shortens the route and never adds climbing. Climbing is cumulative gain, not the net difference between the endpoints. Steps are allowed on foot; on a bike, steps and footpaths without cycle access are left out. Faint lines show the other routes along the way. Place search is offline: street junctions, places and postcodes for Greater London load into this page.
+    <a href="https://github.com/mfbx9da4/flattenlondon">Source and data</a>.</p>
+    <p class="fine" id="vintage">Data: Overture 2026-09-23.1, Environment Agency LIDAR Composite DTM 1 m (fetched 2026-10-06), OS Open Names 2026-07, Code-Point Open 2026-08. Built 2026-10-07.</p>
+    <p class="fine">Adapted from <a href="https://github.com/almostimplemented/flattensf">flattensf</a> by Drew Edwards (MIT licence).</p>
+  </details>
+  <p class="credit-inline">Adapted from <a href="https://github.com/almostimplemented/flattensf">flattensf</a> by Drew Edwards</p>
+  <p class="attr-inline" id="attr_inline"></p>
+</section>
+<script src="leaflet-5a640ff863.js"></script>
+<script>window.FLR = {"index_url":"data/index-70c72bf6ff.json","worker_url":"worker-da1a609e54.js"};</script>
+<script src="app-457a06aca7.js"></script>
+</body>
+</html>
